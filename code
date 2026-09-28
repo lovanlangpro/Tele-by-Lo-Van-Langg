@@ -1,0 +1,2108 @@
+--[[
+========================================================
+                     [ WP ] TELE
+                POWER BY LO VAN LANG
+========================================================
+--]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local Player = Players.LocalPlayer
+
+--------------------------------------------------------
+-- CHARACTER
+--------------------------------------------------------
+
+local Character
+local Root
+
+local function GetCharacter()
+    Character = Player.Character or Player.CharacterAdded:Wait()
+    Root = Character:WaitForChild("HumanoidRootPart")
+end
+
+GetCharacter()
+
+Player.CharacterAdded:Connect(function(char)
+    Character = char
+    Root = char:WaitForChild("HumanoidRootPart")
+end)
+
+--------------------------------------------------------
+-- DATA
+--------------------------------------------------------
+
+local Waypoints = {}
+
+local Running = false
+local DelayTime = 1
+local DebugEnabled = true
+
+local LoopEnabled = false
+local LoopCount = 1
+
+local Language = "vi"
+
+--------------------------------------------------------
+-- COLORS
+--------------------------------------------------------
+
+local RED = Color3.fromRGB(220, 25, 35)
+local RED_LIGHT = Color3.fromRGB(255, 65, 75)
+local RED_DARK = Color3.fromRGB(100, 10, 18)
+
+local BG = Color3.fromRGB(11, 11, 14)
+local PANEL = Color3.fromRGB(20, 20, 24)
+local PANEL2 = Color3.fromRGB(29, 29, 34)
+
+local WHITE = Color3.fromRGB(245, 245, 248)
+local GRAY = Color3.fromRGB(155, 155, 165)
+
+--------------------------------------------------------
+-- LANGUAGE
+--------------------------------------------------------
+
+local Texts = {
+
+    vi = {
+
+        delay = "THỜI GIAN TELE / GIÂY",
+        custom = "CUSTOM",
+
+        warning =
+            "⚠ DELAY < 1.5s — GAME CÓ THỂ BỊ KHỰNG HOẶC KHÔNG ỔN ĐỊNH",
+
+        set = "＋   THÊM VỊ TRÍ",
+        delete = "−   XÓA VỊ TRÍ VỪA ĐẶT",
+        clear = "↻   XÓA TẤT CẢ",
+
+        start = "▶   BẮT ĐẦU",
+        stop = "■   DỪNG",
+
+        debugOn = "🐞   DEBUG: ON",
+        debugOff = "🐞   DEBUG: OFF",
+
+        loopOn = "🔁   LẶP LẠI: ON",
+        loopOff = "🔁   LẶP LẠI: OFF",
+
+        loopCount = "SỐ LẦN LẶP",
+
+        settings = "CÀI ĐẶT",
+        language = "NGÔN NGỮ",
+
+        vietnamese = "TIẾNG VIỆT",
+        english = "TIẾNG ANH",
+
+        back = "QUAY LẠI",
+
+        ready = "WAYPOINTS : 0",
+
+        noWaypoint =
+            "⚠ HÃY SET WAYPOINT TRƯỚC",
+
+        waypointSet =
+            "✓ ĐÃ THÊM WAYPOINT ",
+
+        deleted =
+            "✓ ĐÃ XÓA WAYPOINT VỪA RỒI",
+
+        cleared =
+            "✓ ĐÃ XÓA TẤT CẢ WAYPOINT",
+
+        running =
+            "ĐANG DỊCH CHUYỂN",
+
+        completed =
+            "✓ HOÀN TẤT",
+
+        stopped =
+            "■ ĐÃ DỪNG",
+
+        debugEnabled =
+            "🐞 DEBUG ĐÃ BẬT",
+
+        debugDisabled =
+            "🐞 DEBUG ĐÃ TẮT",
+
+        noDelete =
+            "KHÔNG CÓ ĐỊA ĐIỂM ĐỂ XÓA"
+    },
+
+    en = {
+
+        delay = "TELEPORT DELAY / SEC",
+        custom = "CUSTOM",
+
+        warning =
+            "⚠ DELAY < 1.5s — GAME MAY PAUSE OR BECOME UNSTABLE",
+
+        set = "＋   SET WAYPOINT",
+        delete = "−   DELETE LAST",
+        clear = "↻   CLEAR ALL",
+
+        start = "▶   START TELEPORT",
+        stop = "■   STOP TELEPORT",
+
+        debugOn = "🐞   DEBUG: ON",
+        debugOff = "🐞   DEBUG: OFF",
+
+        loopOn = "🔁   LOOP: ON",
+        loopOff = "🔁   LOOP: OFF",
+
+        loopCount = "LOOP COUNT",
+
+        settings = "SETTINGS",
+        language = "LANGUAGE",
+
+        vietnamese = "VIETNAMESE",
+        english = "ENGLISH",
+
+        back = "BACK",
+
+        ready = "WAYPOINTS : 0",
+
+        noWaypoint =
+            "⚠ PLEASE SET SOME WAYPOINTS FIRST",
+
+        waypointSet =
+            "✓ WAYPOINT SAVED ",
+
+        deleted =
+            "✓ LAST WAYPOINT DELETED",
+
+        cleared =
+            "✓ ALL WAYPOINTS CLEARED",
+
+        running =
+            "TELEPORTING",
+
+        completed =
+            "✓ TELEPORT COMPLETED",
+
+        stopped =
+            "■ TELEPORT STOPPED",
+
+        debugEnabled =
+            "🐞 DEBUG ENABLED",
+
+        debugDisabled =
+            "🐞 DEBUG DISABLED",
+
+        noDelete =
+            "NO WAYPOINT TO DELETE"
+    }
+}
+
+local function T(key)
+    return Texts[Language][key] or key
+end
+
+--------------------------------------------------------
+-- DEBUG
+--------------------------------------------------------
+
+local DebugFolder = Instance.new("Folder")
+DebugFolder.Name = "LoVanLang_DebugWaypoints"
+DebugFolder.Parent = workspace
+
+local function CreateDebugPoint(index, cframe)
+
+    if not DebugEnabled then
+        return
+    end
+
+    local Part = Instance.new("Part")
+
+    Part.Name = "Waypoint_" .. index
+    Part.Size = Vector3.new(1.5, 1.5, 1.5)
+    Part.CFrame = cframe
+
+    Part.Anchored = true
+    Part.CanCollide = false
+    Part.CanTouch = false
+    Part.CanQuery = false
+
+    Part.Material = Enum.Material.Neon
+    Part.Color = RED_LIGHT
+    Part.Shape = Enum.PartType.Ball
+    Part.Transparency = 0.15
+
+    Part.Parent = DebugFolder
+
+    local Light = Instance.new("PointLight")
+
+    Light.Color = RED_LIGHT
+    Light.Brightness = 1.5
+    Light.Range = 8
+
+    Light.Parent = Part
+
+    local Billboard = Instance.new("BillboardGui")
+
+    Billboard.Size = UDim2.fromOffset(110, 35)
+    Billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    Billboard.AlwaysOnTop = true
+    Billboard.Parent = Part
+
+    local Label = Instance.new("TextLabel")
+
+    Label.Size = UDim2.fromScale(1, 1)
+    Label.BackgroundTransparency = 1
+
+    Label.Text = "WAYPOINT " .. index
+
+    Label.TextColor3 = WHITE
+    Label.TextStrokeTransparency = 0.4
+
+    Label.TextSize = 12
+    Label.Font = Enum.Font.GothamBold
+
+    Label.Parent = Billboard
+
+    task.spawn(function()
+
+        local Original = Part.Position
+
+        while Part.Parent do
+
+            local Up = TweenService:Create(
+                Part,
+                TweenInfo.new(
+                    0.8,
+                    Enum.EasingStyle.Sine,
+                    Enum.EasingDirection.InOut
+                ),
+                {
+                    Position =
+                        Original +
+                        Vector3.new(0, 0.6, 0)
+                }
+            )
+
+            Up:Play()
+            Up.Completed:Wait()
+
+            if not Part.Parent then
+                break
+            end
+
+            local Down = TweenService:Create(
+                Part,
+                TweenInfo.new(
+                    0.8,
+                    Enum.EasingStyle.Sine,
+                    Enum.EasingDirection.InOut
+                ),
+                {
+                    Position = Original
+                }
+            )
+
+            Down:Play()
+            Down.Completed:Wait()
+
+        end
+
+    end)
+
+end
+
+local function RefreshDebug()
+
+    DebugFolder:ClearAllChildren()
+
+    if not DebugEnabled then
+        return
+    end
+
+    for i, waypoint in ipairs(Waypoints) do
+        CreateDebugPoint(
+            i,
+            waypoint.CFrame
+        )
+    end
+
+end
+
+--------------------------------------------------------
+-- GUI
+--------------------------------------------------------
+
+local Gui = Instance.new("ScreenGui")
+
+Gui.Name = "LoVanLangWaypointUI"
+Gui.ResetOnSpawn = false
+Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+Gui.Parent =
+    Player:WaitForChild("PlayerGui")
+
+--------------------------------------------------------
+-- MAIN
+--------------------------------------------------------
+
+local Main = Instance.new("Frame")
+
+Main.Size =
+    UDim2.fromOffset(430, 700)
+
+Main.Position =
+    UDim2.new(
+        0.5,
+        -215,
+        0.5,
+        -350
+    )
+
+Main.BackgroundColor3 = BG
+Main.BorderSizePixel = 0
+
+Main.Parent = Gui
+
+local MainCorner = Instance.new("UICorner")
+
+MainCorner.CornerRadius =
+    UDim.new(0, 18)
+
+MainCorner.Parent = Main
+
+local MainStroke = Instance.new("UIStroke")
+
+MainStroke.Color = RED
+MainStroke.Thickness = 1.5
+MainStroke.Transparency = 0.25
+
+MainStroke.Parent = Main
+
+--------------------------------------------------------
+-- TOP
+--------------------------------------------------------
+
+local Top = Instance.new("Frame")
+
+Top.Size =
+    UDim2.new(1, 0, 0, 72)
+
+Top.BackgroundColor3 =
+    PANEL
+
+Top.BorderSizePixel = 0
+
+Top.Parent = Main
+
+local TopCorner = Instance.new("UICorner")
+
+TopCorner.CornerRadius =
+    UDim.new(0, 18)
+
+TopCorner.Parent = Top
+
+--------------------------------------------------------
+-- TITLE
+--------------------------------------------------------
+
+local Title = Instance.new("TextLabel")
+
+Title.Size =
+    UDim2.new(1, -190, 0, 28)
+
+Title.Position =
+    UDim2.fromOffset(18, 8)
+
+Title.BackgroundTransparency = 1
+
+Title.Text = "[ WP ] TELE"
+
+Title.TextColor3 = WHITE
+Title.TextSize = 20
+
+Title.Font =
+    Enum.Font.GothamBold
+
+Title.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+Title.Parent = Top
+
+--------------------------------------------------------
+-- POWER
+--------------------------------------------------------
+
+local Power = Instance.new("TextLabel")
+
+Power.Size =
+    UDim2.new(1, -190, 0, 25)
+
+Power.Position =
+    UDim2.fromOffset(18, 35)
+
+Power.BackgroundTransparency = 1
+
+Power.Text =
+    "POWER BY LO VAN LANG"
+
+Power.TextSize = 13
+
+Power.Font =
+    Enum.Font.GothamBlack
+
+Power.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+Power.Parent = Top
+
+--------------------------------------------------------
+-- RAINBOW
+--------------------------------------------------------
+
+local Hue = 0
+
+RunService.RenderStepped:Connect(function(dt)
+
+    Hue =
+        (Hue + dt * 0.3) % 1
+
+    Power.TextColor3 =
+        Color3.fromHSV(
+            Hue,
+            1,
+            1
+        )
+
+end)
+
+--------------------------------------------------------
+-- TOP BUTTON
+--------------------------------------------------------
+
+local function TopButton(text, x)
+
+    local Button =
+        Instance.new("TextButton")
+
+    Button.Size =
+        UDim2.fromOffset(34, 34)
+
+    Button.Position =
+        UDim2.new(
+            1,
+            x,
+            0,
+            19
+        )
+
+    Button.BackgroundColor3 =
+        PANEL2
+
+    Button.Text = text
+
+    Button.TextColor3 =
+        WHITE
+
+    Button.TextSize = 17
+
+    Button.Font =
+        Enum.Font.GothamBold
+
+    Button.AutoButtonColor = false
+
+    Button.BorderSizePixel = 0
+
+    Button.Parent = Top
+
+    local Corner =
+        Instance.new("UICorner")
+
+    Corner.CornerRadius =
+        UDim.new(0, 9)
+
+    Corner.Parent = Button
+
+    local Stroke =
+        Instance.new("UIStroke")
+
+    Stroke.Color = RED
+    Stroke.Transparency = 0.55
+
+    Stroke.Parent = Button
+
+    return Button
+
+end
+
+local SettingsButton =
+    TopButton("⚙", -124)
+
+local Min =
+    TopButton("−", -82)
+
+local Close =
+    TopButton("×", -42)
+
+--------------------------------------------------------
+-- CONTENT
+--------------------------------------------------------
+
+local Content =
+    Instance.new("Frame")
+
+Content.Size =
+    UDim2.new(
+        1,
+        -28,
+        1,
+        -88
+    )
+
+Content.Position =
+    UDim2.fromOffset(14, 80)
+
+Content.BackgroundTransparency = 1
+
+Content.Parent = Main
+
+--------------------------------------------------------
+-- DELAY
+--------------------------------------------------------
+
+local DelayLabel =
+    Instance.new("TextLabel")
+
+DelayLabel.Size =
+    UDim2.new(1, 0, 0, 22)
+
+DelayLabel.BackgroundTransparency = 1
+
+DelayLabel.Text =
+    T("delay")
+
+DelayLabel.TextColor3 = GRAY
+DelayLabel.TextSize = 11
+
+DelayLabel.Font =
+    Enum.Font.GothamBold
+
+DelayLabel.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+DelayLabel.Parent = Content
+
+local DelayValue =
+    Instance.new("TextLabel")
+
+DelayValue.Size =
+    UDim2.fromOffset(80, 22)
+
+DelayValue.Position =
+    UDim2.new(1, -80, 0, 0)
+
+DelayValue.BackgroundTransparency = 1
+
+DelayValue.TextColor3 =
+    RED_LIGHT
+
+DelayValue.TextSize = 12
+
+DelayValue.Font =
+    Enum.Font.GothamBold
+
+DelayValue.TextXAlignment =
+    Enum.TextXAlignment.Right
+
+DelayValue.Parent = Content
+
+--------------------------------------------------------
+-- SLIDER
+--------------------------------------------------------
+
+local Slider =
+    Instance.new("Frame")
+
+Slider.Size =
+    UDim2.new(1, -115, 0, 8)
+
+Slider.Position =
+    UDim2.fromOffset(0, 31)
+
+Slider.BackgroundColor3 =
+    PANEL2
+
+Slider.BorderSizePixel = 0
+
+Slider.Parent = Content
+
+local SliderCorner =
+    Instance.new("UICorner")
+
+SliderCorner.CornerRadius =
+    UDim.new(1, 0)
+
+SliderCorner.Parent = Slider
+
+local Fill =
+    Instance.new("Frame")
+
+Fill.Size =
+    UDim2.new(0, 0, 1, 0)
+
+Fill.BackgroundColor3 = RED
+Fill.BorderSizePixel = 0
+
+Fill.Parent = Slider
+
+local FillCorner =
+    Instance.new("UICorner")
+
+FillCorner.CornerRadius =
+    UDim.new(1, 0)
+
+FillCorner.Parent = Fill
+
+local Knob =
+    Instance.new("Frame")
+
+Knob.Size =
+    UDim2.fromOffset(16, 16)
+
+Knob.AnchorPoint =
+    Vector2.new(0.5, 0.5)
+
+Knob.Position =
+    UDim2.new(0, 0, 0.5, 0)
+
+Knob.BackgroundColor3 = WHITE
+Knob.BorderSizePixel = 0
+
+Knob.Parent = Slider
+
+local KnobCorner =
+    Instance.new("UICorner")
+
+KnobCorner.CornerRadius =
+    UDim.new(1, 0)
+
+KnobCorner.Parent = Knob
+
+--------------------------------------------------------
+-- CUSTOM DELAY
+--------------------------------------------------------
+
+local DelayBox =
+    Instance.new("TextBox")
+
+DelayBox.Size =
+    UDim2.fromOffset(105, 34)
+
+DelayBox.Position =
+    UDim2.new(
+        1,
+        -105,
+        0,
+        18
+    )
+
+DelayBox.BackgroundColor3 =
+    PANEL
+
+DelayBox.BorderSizePixel = 0
+
+DelayBox.Text =
+    tostring(DelayTime)
+
+DelayBox.PlaceholderText =
+    T("custom")
+
+DelayBox.TextColor3 =
+    WHITE
+
+DelayBox.TextSize = 12
+
+DelayBox.Font =
+    Enum.Font.Gotham
+
+DelayBox.ClearTextOnFocus = false
+
+DelayBox.Parent = Content
+
+local DelayCorner =
+    Instance.new("UICorner")
+
+DelayCorner.CornerRadius =
+    UDim.new(0, 9)
+
+DelayCorner.Parent = DelayBox
+
+local DelayStroke =
+    Instance.new("UIStroke")
+
+DelayStroke.Color = RED
+DelayStroke.Transparency = 0.5
+
+DelayStroke.Parent = DelayBox
+
+--------------------------------------------------------
+-- WARNING
+--------------------------------------------------------
+
+local Warning =
+    Instance.new("TextLabel")
+
+Warning.Size =
+    UDim2.new(1, 0, 0, 42)
+
+Warning.Position =
+    UDim2.fromOffset(0, 55)
+
+Warning.BackgroundColor3 =
+    Color3.fromRGB(55, 15, 18)
+
+Warning.BorderSizePixel = 0
+
+Warning.TextColor3 =
+    Color3.fromRGB(
+        255,
+        125,
+        130
+    )
+
+Warning.TextSize = 10
+
+Warning.Font =
+    Enum.Font.GothamBold
+
+Warning.TextWrapped = true
+
+Warning.Visible = false
+
+Warning.Parent = Content
+
+local WarningCorner =
+    Instance.new("UICorner")
+
+WarningCorner.CornerRadius =
+    UDim.new(0, 9)
+
+WarningCorner.Parent = Warning
+
+--------------------------------------------------------
+-- DELAY UPDATE
+--------------------------------------------------------
+
+local function UpdateDelay()
+
+    DelayValue.Text =
+        string.format(
+            "%.2fs",
+            DelayTime
+        )
+
+    local sliderValue =
+        math.clamp(
+            DelayTime,
+            1,
+            50
+        )
+
+    local percent =
+        (sliderValue - 1) / 49
+
+    Fill.Size =
+        UDim2.new(
+            percent,
+            0,
+            1,
+            0
+        )
+
+    Knob.Position =
+        UDim2.new(
+            percent,
+            0,
+            0.5,
+            0
+        )
+
+    Warning.Text =
+        T("warning")
+
+    Warning.Visible =
+        DelayTime < 1.5
+
+end
+
+--------------------------------------------------------
+-- SLIDER
+--------------------------------------------------------
+
+local SliderDragging = false
+
+Slider.InputBegan:Connect(function(input)
+
+    if input.UserInputType ==
+        Enum.UserInputType.MouseButton1 then
+
+        SliderDragging = true
+
+    end
+
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+
+    if input.UserInputType ==
+        Enum.UserInputType.MouseButton1 then
+
+        SliderDragging = false
+
+    end
+
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+
+    if not SliderDragging then
+        return
+    end
+
+    if input.UserInputType ~=
+        Enum.UserInputType.MouseMovement then
+
+        return
+
+    end
+
+    local X =
+        input.Position.X -
+        Slider.AbsolutePosition.X
+
+    local Percent =
+        math.clamp(
+            X / Slider.AbsoluteSize.X,
+            0,
+            1
+        )
+
+    DelayTime =
+        1 + Percent * 49
+
+    DelayTime =
+        math.floor(
+            DelayTime * 10 + 0.5
+        ) / 10
+
+    DelayBox.Text =
+        tostring(DelayTime)
+
+    UpdateDelay()
+
+end)
+
+--------------------------------------------------------
+-- CUSTOM INPUT
+--------------------------------------------------------
+
+DelayBox.FocusLost:Connect(function()
+
+    local Number =
+        tonumber(DelayBox.Text)
+
+    if Number then
+
+        DelayTime =
+            math.max(
+                0.05,
+                Number
+            )
+
+    else
+
+        DelayTime = 1
+
+    end
+
+    DelayBox.Text =
+        tostring(DelayTime)
+
+    UpdateDelay()
+
+end)
+
+--------------------------------------------------------
+-- NEW HOVER EFFECT
+--------------------------------------------------------
+
+local function AddHover(Button)
+
+    Button.AutoButtonColor = false
+    Button.ClipsDescendants = true
+
+    local Hover =
+        Instance.new("Frame")
+
+    Hover.Name =
+        "HoverGlow"
+
+    Hover.Size =
+        UDim2.new(1, 0, 1, 0)
+
+    Hover.BackgroundColor3 =
+        RED
+
+    Hover.BackgroundTransparency =
+        1
+
+    Hover.BorderSizePixel = 0
+
+    Hover.ZIndex =
+        Button.ZIndex + 1
+
+    Hover.Parent = Button
+
+    local HoverCorner =
+        Instance.new("UICorner")
+
+    HoverCorner.CornerRadius =
+        UDim.new(0, 10)
+
+    HoverCorner.Parent = Hover
+
+    local Stroke =
+        Instance.new("UIStroke")
+
+    Stroke.Color =
+        RED_LIGHT
+
+    Stroke.Thickness = 1
+
+    Stroke.Transparency = 1
+
+    Stroke.Parent = Button
+
+    Button.MouseEnter:Connect(function()
+
+        TweenService:Create(
+            Hover,
+            TweenInfo.new(
+                0.16,
+                Enum.EasingStyle.Quad,
+                Enum.EasingDirection.Out
+            ),
+            {
+                BackgroundTransparency = 0.90
+            }
+        ):Play()
+
+        TweenService:Create(
+            Stroke,
+            TweenInfo.new(0.16),
+            {
+                Transparency = 0.25
+            }
+        ):Play()
+
+    end)
+
+    Button.MouseLeave:Connect(function()
+
+        TweenService:Create(
+            Hover,
+            TweenInfo.new(
+                0.20,
+                Enum.EasingStyle.Quad,
+                Enum.EasingDirection.Out
+            ),
+            {
+                BackgroundTransparency = 1
+            }
+        ):Play()
+
+        TweenService:Create(
+            Stroke,
+            TweenInfo.new(0.20),
+            {
+                Transparency = 1
+            }
+        ):Play()
+
+    end)
+
+    Button.MouseButton1Down:Connect(function()
+
+        TweenService:Create(
+            Hover,
+            TweenInfo.new(0.06),
+            {
+                BackgroundTransparency = 0.78
+            }
+        ):Play()
+
+    end)
+
+    Button.MouseButton1Up:Connect(function()
+
+        TweenService:Create(
+            Hover,
+            TweenInfo.new(0.10),
+            {
+                BackgroundTransparency = 0.90
+            }
+        ):Play()
+
+    end)
+
+end
+
+--------------------------------------------------------
+-- BUTTON CREATOR
+--------------------------------------------------------
+
+local function CreateButton(text, y)
+
+    local Button =
+        Instance.new("TextButton")
+
+    Button.Size =
+        UDim2.new(
+            1,
+            0,
+            0,
+            40
+        )
+
+    Button.Position =
+        UDim2.fromOffset(
+            0,
+            y
+        )
+
+    Button.BackgroundColor3 =
+        PANEL
+
+    Button.BorderSizePixel = 0
+
+    Button.Text = text
+
+    Button.TextColor3 =
+        WHITE
+
+    Button.TextSize = 12
+
+    Button.Font =
+        Enum.Font.GothamBold
+
+    Button.AutoButtonColor = false
+    Button.ClipsDescendants = true
+
+    Button.Parent = Content
+
+    local Corner =
+        Instance.new("UICorner")
+
+    Corner.CornerRadius =
+        UDim.new(0, 10)
+
+    Corner.Parent = Button
+
+    AddHover(Button)
+
+    return Button
+
+end
+
+--------------------------------------------------------
+-- BUTTONS
+--------------------------------------------------------
+
+local Set =
+    CreateButton(
+        T("set"),
+        110
+    )
+
+local Delete =
+    CreateButton(
+        T("delete"),
+        156
+    )
+
+local Clear =
+    CreateButton(
+        T("clear"),
+        202
+    )
+
+local Loop =
+    CreateButton(
+        T("loopOff"),
+        248
+    )
+
+--------------------------------------------------------
+-- LOOP COUNT
+--------------------------------------------------------
+
+local LoopCountLabel =
+    Instance.new("TextLabel")
+
+LoopCountLabel.Size =
+    UDim2.new(
+        0.5,
+        0,
+        0,
+        32
+    )
+
+LoopCountLabel.Position =
+    UDim2.fromOffset(
+        0,
+        300
+    )
+
+LoopCountLabel.BackgroundTransparency = 1
+
+LoopCountLabel.Text =
+    T("loopCount")
+
+LoopCountLabel.TextColor3 =
+    GRAY
+
+LoopCountLabel.TextSize = 11
+
+LoopCountLabel.Font =
+    Enum.Font.GothamBold
+
+LoopCountLabel.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+LoopCountLabel.Parent = Content
+
+local LoopBox =
+    Instance.new("TextBox")
+
+LoopBox.Size =
+    UDim2.fromOffset(
+        105,
+        34
+    )
+
+LoopBox.Position =
+    UDim2.new(
+        1,
+        -105,
+        0,
+        298
+    )
+
+LoopBox.BackgroundColor3 =
+    PANEL
+
+LoopBox.BorderSizePixel = 0
+
+LoopBox.Text =
+    tostring(LoopCount)
+
+LoopBox.TextColor3 =
+    WHITE
+
+LoopBox.TextSize = 12
+
+LoopBox.Font =
+    Enum.Font.GothamBold
+
+LoopBox.ClearTextOnFocus = false
+
+LoopBox.Parent = Content
+
+local LoopCorner =
+    Instance.new("UICorner")
+
+LoopCorner.CornerRadius =
+    UDim.new(0, 9)
+
+LoopCorner.Parent = LoopBox
+
+local LoopStroke =
+    Instance.new("UIStroke")
+
+LoopStroke.Color = RED
+LoopStroke.Transparency = 0.5
+
+LoopStroke.Parent = LoopBox
+
+--------------------------------------------------------
+-- LOOP INPUT
+--------------------------------------------------------
+
+LoopBox.FocusLost:Connect(function()
+
+    local Number =
+        tonumber(LoopBox.Text)
+
+    if not Number then
+        Number = 1
+    end
+
+    Number =
+        math.clamp(
+            math.floor(Number),
+            1,
+            999
+        )
+
+    LoopCount = Number
+
+    LoopBox.Text =
+        tostring(LoopCount)
+
+end)
+
+--------------------------------------------------------
+-- MAIN BUTTONS
+--------------------------------------------------------
+
+local Start =
+    CreateButton(
+        T("start"),
+        346
+    )
+
+local Stop =
+    CreateButton(
+        T("stop"),
+        392
+    )
+
+local DebugButton =
+    CreateButton(
+        T("debugOn"),
+        438
+    )
+
+--------------------------------------------------------
+-- STATUS
+--------------------------------------------------------
+
+local Status =
+    Instance.new("TextLabel")
+
+Status.Size =
+    UDim2.new(
+        1,
+        0,
+        0,
+        50
+    )
+
+Status.Position =
+    UDim2.fromOffset(
+        0,
+        490
+    )
+
+Status.BackgroundColor3 =
+    PANEL
+
+Status.BorderSizePixel = 0
+
+Status.Text =
+    T("ready")
+
+Status.TextColor3 =
+    RED_LIGHT
+
+Status.TextSize = 11
+
+Status.Font =
+    Enum.Font.GothamBold
+
+Status.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+Status.TextWrapped = true
+
+Status.Parent = Content
+
+local StatusCorner =
+    Instance.new("UICorner")
+
+StatusCorner.CornerRadius =
+    UDim.new(0, 10)
+
+StatusCorner.Parent = Status
+
+local StatusPadding =
+    Instance.new("UIPadding")
+
+StatusPadding.PaddingLeft =
+    UDim.new(0, 14)
+
+StatusPadding.Parent = Status
+
+local StatusStroke =
+    Instance.new("UIStroke")
+
+StatusStroke.Color = RED
+StatusStroke.Transparency = 0.55
+
+StatusStroke.Parent = Status
+
+--------------------------------------------------------
+-- STATUS
+--------------------------------------------------------
+
+local function UpdateStatus(text)
+
+    if text then
+
+        Status.Text = text
+
+    else
+
+        Status.Text =
+            "WAYPOINTS : "
+            .. #Waypoints
+
+    end
+
+end
+
+--------------------------------------------------------
+-- WAYPOINT
+--------------------------------------------------------
+
+Set.MouseButton1Click:Connect(function()
+
+    if not Root or not Root.Parent then
+        GetCharacter()
+    end
+
+    local CF =
+        Root.CFrame
+
+    table.insert(
+        Waypoints,
+        {
+            CFrame = CF,
+            Position = CF.Position
+        }
+    )
+
+    RefreshDebug()
+
+    UpdateStatus(
+        T("waypointSet")
+        .. #Waypoints
+    )
+
+end)
+
+--------------------------------------------------------
+-- DELETE
+--------------------------------------------------------
+
+Delete.MouseButton1Click:Connect(function()
+
+    if #Waypoints <= 0 then
+
+        UpdateStatus(
+            T("noDelete")
+        )
+
+        return
+
+    end
+
+    table.remove(
+        Waypoints,
+        #Waypoints
+    )
+
+    RefreshDebug()
+
+    UpdateStatus(
+        T("deleted")
+    )
+
+end)
+
+--------------------------------------------------------
+-- CLEAR
+--------------------------------------------------------
+
+Clear.MouseButton1Click:Connect(function()
+
+    Waypoints = {}
+
+    RefreshDebug()
+
+    UpdateStatus(
+        T("cleared")
+    )
+
+end)
+
+--------------------------------------------------------
+-- LOOP
+--------------------------------------------------------
+
+Loop.MouseButton1Click:Connect(function()
+
+    LoopEnabled =
+        not LoopEnabled
+
+    if LoopEnabled then
+
+        Loop.Text =
+            T("loopOn")
+
+        Loop.BackgroundColor3 =
+            RED_DARK
+
+    else
+
+        Loop.Text =
+            T("loopOff")
+
+        Loop.BackgroundColor3 =
+            PANEL
+
+    end
+
+end)
+
+--------------------------------------------------------
+-- START
+--------------------------------------------------------
+
+Start.MouseButton1Click:Connect(function()
+
+    if Running then
+        return
+    end
+
+    if #Waypoints == 0 then
+
+        UpdateStatus(
+            T("noWaypoint")
+        )
+
+        return
+
+    end
+
+    Running = true
+
+    task.spawn(function()
+
+        local TotalRuns =
+            LoopEnabled
+            and LoopCount
+            or 1
+
+        for CurrentRun = 1, TotalRuns do
+
+            if not Running then
+                break
+            end
+
+            for i, waypoint in ipairs(Waypoints) do
+
+                if not Running then
+                    break
+                end
+
+                if not Root or not Root.Parent then
+                    GetCharacter()
+                end
+
+                UpdateStatus(
+                    T("running")
+                    .. "  "
+                    .. i
+                    .. " / "
+                    .. #Waypoints
+                    .. "   •   "
+                    .. CurrentRun
+                    .. " / "
+                    .. TotalRuns
+                )
+
+                Root.CFrame =
+                    waypoint.CFrame
+
+                task.wait(
+                    DelayTime
+                )
+
+            end
+
+        end
+
+        if Running then
+
+            UpdateStatus(
+                T("completed")
+            )
+
+        else
+
+            UpdateStatus(
+                T("stopped")
+            )
+
+        end
+
+        Running = false
+
+    end)
+
+end)
+
+--------------------------------------------------------
+-- STOP
+--------------------------------------------------------
+
+Stop.MouseButton1Click:Connect(function()
+
+    Running = false
+
+    UpdateStatus(
+        T("stopped")
+    )
+
+end)
+
+--------------------------------------------------------
+-- DEBUG
+--------------------------------------------------------
+
+DebugButton.MouseButton1Click:Connect(function()
+
+    DebugEnabled =
+        not DebugEnabled
+
+    if DebugEnabled then
+
+        DebugButton.Text =
+            T("debugOn")
+
+        RefreshDebug()
+
+        UpdateStatus(
+            T("debugEnabled")
+        )
+
+    else
+
+        DebugButton.Text =
+            T("debugOff")
+
+        DebugFolder:ClearAllChildren()
+
+        UpdateStatus(
+            T("debugDisabled")
+        )
+
+    end
+
+end)
+
+--------------------------------------------------------
+-- SETTINGS
+--------------------------------------------------------
+
+local SettingsPanel =
+    Instance.new("Frame")
+
+SettingsPanel.Size =
+    UDim2.fromScale(
+        1,
+        1
+    )
+
+SettingsPanel.BackgroundColor3 =
+    BG
+
+SettingsPanel.BorderSizePixel = 0
+
+SettingsPanel.Visible = false
+
+SettingsPanel.ZIndex = 20
+
+SettingsPanel.Parent = Main
+
+local SettingsCorner =
+    Instance.new("UICorner")
+
+SettingsCorner.CornerRadius =
+    UDim.new(0, 18)
+
+SettingsCorner.Parent =
+    SettingsPanel
+
+local SettingsTitle =
+    Instance.new("TextLabel")
+
+SettingsTitle.Size =
+    UDim2.new(
+        1,
+        -40,
+        0,
+        35
+    )
+
+SettingsTitle.Position =
+    UDim2.fromOffset(
+        20,
+        20
+    )
+
+SettingsTitle.BackgroundTransparency = 1
+
+SettingsTitle.Text =
+    T("settings")
+
+SettingsTitle.TextColor3 =
+    WHITE
+
+SettingsTitle.TextSize = 21
+
+SettingsTitle.Font =
+    Enum.Font.GothamBold
+
+SettingsTitle.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+SettingsTitle.ZIndex = 21
+
+SettingsTitle.Parent =
+    SettingsPanel
+
+local LanguageTitle =
+    Instance.new("TextLabel")
+
+LanguageTitle.Size =
+    UDim2.new(
+        1,
+        -40,
+        0,
+        25
+    )
+
+LanguageTitle.Position =
+    UDim2.fromOffset(
+        20,
+        65
+    )
+
+LanguageTitle.BackgroundTransparency = 1
+
+LanguageTitle.Text =
+    T("language")
+
+LanguageTitle.TextColor3 =
+    GRAY
+
+LanguageTitle.TextSize = 11
+
+LanguageTitle.Font =
+    Enum.Font.GothamBold
+
+LanguageTitle.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+LanguageTitle.ZIndex = 21
+
+LanguageTitle.Parent =
+    SettingsPanel
+
+--------------------------------------------------------
+-- SETTINGS BUTTON
+--------------------------------------------------------
+
+local function SettingsButtonCreate(text, y)
+
+    local Button =
+        Instance.new("TextButton")
+
+    Button.Size =
+        UDim2.new(
+            1,
+            -40,
+            0,
+            48
+        )
+
+    Button.Position =
+        UDim2.fromOffset(
+            20,
+            y
+        )
+
+    Button.BackgroundColor3 =
+        PANEL
+
+    Button.BorderSizePixel = 0
+
+    Button.Text =
+        text
+
+    Button.TextColor3 =
+        WHITE
+
+    Button.TextSize = 12
+
+    Button.Font =
+        Enum.Font.GothamBold
+
+    Button.AutoButtonColor = false
+
+    Button.ZIndex = 21
+
+    Button.Parent =
+        SettingsPanel
+
+    local Corner =
+        Instance.new("UICorner")
+
+    Corner.CornerRadius =
+        UDim.new(0, 10)
+
+    Corner.Parent = Button
+
+    AddHover(Button)
+
+    return Button
+
+end
+
+local VN =
+    SettingsButtonCreate(
+        "VI  •  "
+        .. T("vietnamese"),
+        105
+    )
+
+local EN =
+    SettingsButtonCreate(
+        "EN  •  "
+        .. T("english"),
+        165
+    )
+
+local Back =
+    SettingsButtonCreate(
+        T("back"),
+        595
+    )
+
+Back.BackgroundColor3 =
+    RED_DARK
+
+--------------------------------------------------------
+-- SETTINGS EVENTS
+--------------------------------------------------------
+
+SettingsButton.MouseButton1Click:Connect(function()
+
+    SettingsPanel.Visible = true
+
+end)
+
+Back.MouseButton1Click:Connect(function()
+
+    SettingsPanel.Visible = false
+
+end)
+
+--------------------------------------------------------
+-- LANGUAGE APPLY
+--------------------------------------------------------
+
+local function ApplyLanguage()
+
+    DelayLabel.Text =
+        T("delay")
+
+    DelayBox.PlaceholderText =
+        T("custom")
+
+    Warning.Text =
+        T("warning")
+
+    Set.Text =
+        T("set")
+
+    Delete.Text =
+        T("delete")
+
+    Clear.Text =
+        T("clear")
+
+    Loop.Text =
+        LoopEnabled
+        and T("loopOn")
+        or T("loopOff")
+
+    LoopCountLabel.Text =
+        T("loopCount")
+
+    Start.Text =
+        T("start")
+
+    Stop.Text =
+        T("stop")
+
+    DebugButton.Text =
+        DebugEnabled
+        and T("debugOn")
+        or T("debugOff")
+
+    SettingsTitle.Text =
+        T("settings")
+
+    LanguageTitle.Text =
+        T("language")
+
+    VN.Text =
+        "VI  •  "
+        .. T("vietnamese")
+
+    EN.Text =
+        "EN  •  "
+        .. T("english")
+
+    Back.Text =
+        T("back")
+
+    UpdateDelay()
+
+    -- cập nhật status mặc định theo ngôn ngữ
+    if not Running then
+        Status.Text =
+            "WAYPOINTS : "
+            .. #Waypoints
+    end
+
+end
+
+VN.MouseButton1Click:Connect(function()
+
+    Language = "vi"
+
+    ApplyLanguage()
+
+end)
+
+EN.MouseButton1Click:Connect(function()
+
+    Language = "en"
+
+    ApplyLanguage()
+
+end)
+
+--------------------------------------------------------
+-- TOP HOVER
+--------------------------------------------------------
+
+local function TopHover(Button)
+
+    Button.MouseEnter:Connect(function()
+
+        TweenService:Create(
+            Button,
+            TweenInfo.new(0.15),
+            {
+                BackgroundColor3 =
+                    RED_DARK
+            }
+        ):Play()
+
+    end)
+
+    Button.MouseLeave:Connect(function()
+
+        TweenService:Create(
+            Button,
+            TweenInfo.new(0.15),
+            {
+                BackgroundColor3 =
+                    PANEL2
+            }
+        ):Play()
+
+    end)
+
+end
+
+TopHover(SettingsButton)
+TopHover(Min)
+TopHover(Close)
+
+--------------------------------------------------------
+-- MINIMIZE
+--------------------------------------------------------
+
+local Minimized = false
+
+local NormalSize =
+    Main.Size
+
+Min.MouseButton1Click:Connect(function()
+
+    Minimized =
+        not Minimized
+
+    if Minimized then
+
+        Content.Visible = false
+        SettingsPanel.Visible = false
+
+        TweenService:Create(
+            Main,
+            TweenInfo.new(
+                0.3,
+                Enum.EasingStyle.Quart,
+                Enum.EasingDirection.Out
+            ),
+            {
+                Size =
+                    UDim2.fromOffset(
+                        430,
+                        72
+                    )
+            }
+        ):Play()
+
+        Min.Text = "+"
+
+    else
+
+        TweenService:Create(
+            Main,
+            TweenInfo.new(
+                0.3,
+                Enum.EasingStyle.Quart,
+                Enum.EasingDirection.Out
+            ),
+            {
+                Size =
+                    NormalSize
+            }
+        ):Play()
+
+        task.wait(0.15)
+
+        Content.Visible = true
+
+        Min.Text = "−"
+
+    end
+
+end)
+
+--------------------------------------------------------
+-- CLOSE
+--------------------------------------------------------
+
+Close.MouseButton1Click:Connect(function()
+
+    Running = false
+
+    if DebugFolder then
+        DebugFolder:Destroy()
+    end
+
+    Gui:Destroy()
+
+end)
+
+--------------------------------------------------------
+-- DRAG
+--------------------------------------------------------
+
+local Dragging = false
+local DragStart
+local StartPosition
+
+Top.InputBegan:Connect(function(input)
+
+    if
+        input.UserInputType ==
+            Enum.UserInputType.MouseButton1
+
+        or
+
+        input.UserInputType ==
+            Enum.UserInputType.Touch
+    then
+
+        Dragging = true
+
+        DragStart =
+            input.Position
+
+        StartPosition =
+            Main.Position
+
+        input.Changed:Connect(function()
+
+            if
+                input.UserInputState ==
+                    Enum.UserInputState.End
+            then
+
+                Dragging = false
+
+            end
+
+        end)
+
+    end
+
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+
+    if not Dragging then
+        return
+    end
+
+    if
+        input.UserInputType ==
+            Enum.UserInputType.MouseMovement
+
+        or
+
+        input.UserInputType ==
+            Enum.UserInputType.Touch
+    then
+
+        local Delta =
+            input.Position -
+            DragStart
+
+        Main.Position =
+            UDim2.new(
+                StartPosition.X.Scale,
+                StartPosition.X.Offset + Delta.X,
+
+                StartPosition.Y.Scale,
+                StartPosition.Y.Offset + Delta.Y
+            )
+
+    end
+
+end)
+
+--------------------------------------------------------
+-- INITIAL
+--------------------------------------------------------
+
+UpdateDelay()
+RefreshDebug()
+UpdateStatus()
